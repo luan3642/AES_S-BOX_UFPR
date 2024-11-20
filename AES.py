@@ -1,25 +1,24 @@
 import time
 import os
-from copy import deepcopy
 
 # AES parameters
-Nb = 4  # Number of columns (32-bit words) comprising the State. For AES, Nb = 4
+Nb = 4  # Number of columns comprising the State. For AES, Nb = 4
 Nk = 4  # Number of 32-bit words comprising the Cipher Key. For AES-128, Nk = 4
-Nr = 10  # Number of rounds, which is a function of Nk and Nb (which is fixed). For AES-128, Nr = 10
+Nr = 10  # Number of rounds. For AES-128, Nr = 10
 
 # AES constants
 Rcon = [
-    0x00000000,
-    0x01000000,
-    0x02000000,
-    0x04000000,
-    0x08000000,
-    0x10000000,
-    0x20000000,
-    0x40000000,
-    0x80000000,
-    0x1b000000,
-    0x36000000,
+    0x00,
+    0x01,
+    0x02,
+    0x04,
+    0x08,
+    0x10,
+    0x20,
+    0x40,
+    0x80,
+    0x1B,
+    0x36,
 ]
 
 def nibble_swap(byte):
@@ -41,17 +40,20 @@ def inv_sub_bytes(state):
 
 def shift_rows(state):
     """Shift the rows of the state to the left."""
-    state[1] = state[1][1:] + state[1][:1]
-    state[2] = state[2][2:] + state[2][:2]
-    state[3] = state[3][3:] + state[3][:1]
+    # Row 0 is not shifted
+    state[1] = state[1][1:] + state[1][:1]  # Shift row 1 left by 1
+    state[2] = state[2][2:] + state[2][:2]  # Shift row 2 left by 2
+    state[3] = state[3][3:] + state[3][:3]  # Shift row 3 left by 3
     return state
 
 def inv_shift_rows(state):
     """Shift the rows of the state to the right."""
-    state[1] = state[1][-1:] + state[1][:-1]
-    state[2] = state[2][-2:] + state[2][:-2]
-    state[3] = state[3][-3:] + state[3][:-1]
+    # Row 0 is not shifted
+    state[1] = state[1][-1:] + state[1][:-1]   # Shift row 1 right by 1
+    state[2] = state[2][-2:] + state[2][:-2]   # Shift row 2 right by 2
+    state[3] = state[3][-3:] + state[3][:-3]   # Shift row 3 right by 3
     return state
+
 
 def xtime(a):
     """Multiply by x (i.e., {02}) in GF(2^8)."""
@@ -69,6 +71,10 @@ def mix_single_column(a):
 
 def mix_columns(state):
     """Mix the columns of the state."""
+    
+        # Debug: Print state before mixing
+    print("State before mix_columns:", state)
+
     for i in range(4):
         col = [state[j][i] for j in range(4)]
         col = mix_single_column(col)
@@ -79,20 +85,17 @@ def mix_columns(state):
 def inv_mix_columns(state):
     """Inverse MixColumns step."""
     for i in range(4):
-        s0 = state[0][i]
-        s1 = state[1][i]
-        s2 = state[2][i]
-        s3 = state[3][i]
-        state[0][i] = multiply(s0, 0x0e) ^ multiply(s1, 0x0b) ^ multiply(s2, 0x0d) ^ multiply(s3, 0x09)
-        state[1][i] = multiply(s0, 0x09) ^ multiply(s1, 0x0e) ^ multiply(s2, 0x0b) ^ multiply(s3, 0x0d)
-        state[2][i] = multiply(s0, 0x0d) ^ multiply(s1, 0x09) ^ multiply(s2, 0x0e) ^ multiply(s3, 0x0b)
-        state[3][i] = multiply(s0, 0x0b) ^ multiply(s1, 0x0d) ^ multiply(s2, 0x09) ^ multiply(s3, 0x0e)
+        s = [state[j][i] for j in range(4)]
+        state[0][i] = multiply(s[0], 14) ^ multiply(s[1], 11) ^ multiply(s[2], 13) ^ multiply(s[3], 9)
+        state[1][i] = multiply(s[0], 9) ^ multiply(s[1], 14) ^ multiply(s[2], 11) ^ multiply(s[3], 13)
+        state[2][i] = multiply(s[0], 13) ^ multiply(s[1], 9) ^ multiply(s[2], 14) ^ multiply(s[3], 11)
+        state[3][i] = multiply(s[0], 11) ^ multiply(s[1], 13) ^ multiply(s[2], 9) ^ multiply(s[3], 14)
     return state
 
 def multiply(a, b):
     """Multiply two numbers in GF(2^8) field."""
     p = 0
-    for counter in range(8):
+    for _ in range(8):
         if b & 1:
             p ^= a
         high_bit_set = a & 0x80
@@ -103,55 +106,56 @@ def multiply(a, b):
         b >>= 1
     return p
 
-def add_round_key(state, round_key):
+def add_round_key(state, round_key_words):
     """Add (XOR) the round key to the state."""
-    for i in range(4):
-        for j in range(4):
-            state[i][j] ^= round_key[i][j]
+    for c in range(4):
+        for r in range(4):
+            state[r][c] ^= (round_key_words[c] >> (8 * (3 - r))) & 0xFF
     return state
 
 def key_expansion(key):
     """Generate the expanded key from the cipher key."""
     key_symbols = [k for k in key]
     if len(key_symbols) < 4 * Nk:
-        for i in range(4 * Nk - len(key_symbols)):
-            key_symbols.append(0x01)
+        key_symbols += [0x01] * (4 * Nk - len(key_symbols))
     key_schedule = []
-    for row in range(Nk):
-        word = key_symbols[4*row:4*(row+1)]
+    for i in range(Nk):
+        word = (key_symbols[4*i] << 24) | (key_symbols[4*i+1] << 16) | (key_symbols[4*i+2] << 8) | key_symbols[4*i+3]
         key_schedule.append(word)
-
-    for row in range(Nk, Nb * (Nr + 1)):
-        temp = key_schedule[row - 1].copy()
-        if row % Nk == 0:
-            temp = schedule_core(temp, row // Nk)
-        word = [key_schedule[row - Nk][i] ^ temp[i] for i in range(4)]
-        key_schedule.append(word)
+    for i in range(Nk, Nb * (Nr + 1)):
+        temp = key_schedule[i - 1]
+        if i % Nk == 0:
+            temp = ((nibble_swap((temp >> 16) & 0xFF) << 24) |
+                    (nibble_swap((temp >> 8) & 0xFF) << 16) |
+                    (nibble_swap(temp & 0xFF) << 8) |
+                    nibble_swap((temp >> 24) & 0xFF))
+            temp ^= Rcon[i // Nk] << 24
+        key_schedule.append(key_schedule[i - Nk] ^ temp)
     return key_schedule
 
-def schedule_core(word, iteration):
-    """Core key schedule function used in key expansion."""
-    # Rotate word
-    word = word[1:] + word[:1]
-    # Apply nibble swap substitution
-    word = [nibble_swap(b) for b in word]
-    # XOR with Rcon
-    word[0] ^= (Rcon[iteration] >> 24) & 0xFF
-    return word
-
 def bytes_to_state(block):
-    """Convert a 16-byte block into a 4x4 state matrix."""
-    return [list(block[i:i+4]) for i in range(0, 16, 4)]
+    """Convert a 16-byte block into a 4x4 state matrix, mapping bytes column-wise."""
+    state = [[0]*4 for _ in range(4)]
+    for i in range(16):
+        state[i % 4][i // 4] = block[i]
+    return state
 
 def state_to_bytes(state):
-    """Convert a 4x4 state matrix into a 16-byte block."""
-    return bytes([state[i][j] for j in range(4) for i in range(4)])
+    """Convert a 4x4 state matrix into a 16-byte block, mapping bytes column-wise."""
+    block = []
+    for i in range(4):
+        for j in range(4):
+            block.append(state[j][i])
+    return bytes(block)
 
 def encrypt_block(block, key_schedule, timings):
     """Encrypt a single 16-byte block."""
     state = bytes_to_state(block)
+    print(f"State dimensions: {len(state)}x{len(state[0])}")
+    print("State before initial_add_round_key:", state)
+    
     timings['initial_add_round_key'] -= time.perf_counter()
-    state = add_round_key(state, key_schedule[:Nb])
+    state = add_round_key(state, key_schedule[0:4])
     timings['initial_add_round_key'] += time.perf_counter()
 
     for round in range(1, Nr):
@@ -168,7 +172,7 @@ def encrypt_block(block, key_schedule, timings):
         timings['mix_columns'] += time.perf_counter()
 
         timings['add_round_key'] -= time.perf_counter()
-        state = add_round_key(state, key_schedule[round*Nb:(round+1)*Nb])
+        state = add_round_key(state, key_schedule[round*4:(round+1)*4])
         timings['add_round_key'] += time.perf_counter()
 
     # Final round (without MixColumns)
@@ -181,7 +185,7 @@ def encrypt_block(block, key_schedule, timings):
     timings['shift_rows'] += time.perf_counter()
 
     timings['add_round_key'] -= time.perf_counter()
-    state = add_round_key(state, key_schedule[Nr*Nb:(Nr+1)*Nb])
+    state = add_round_key(state, key_schedule[Nr*4:(Nr+1)*4])
     timings['add_round_key'] += time.perf_counter()
 
     return state_to_bytes(state)
@@ -190,10 +194,10 @@ def decrypt_block(block, key_schedule, timings):
     """Decrypt a single 16-byte block."""
     state = bytes_to_state(block)
     timings['initial_add_round_key'] -= time.perf_counter()
-    state = add_round_key(state, key_schedule[Nr*Nb:(Nr+1)*Nb])
+    state = add_round_key(state, key_schedule[Nr*4:(Nr+1)*4])
     timings['initial_add_round_key'] += time.perf_counter()
 
-    for round in range(Nr-1, 0, -1):
+    for round in range(Nr - 1, 0, -1):
         timings['inv_shift_rows'] -= time.perf_counter()
         state = inv_shift_rows(state)
         timings['inv_shift_rows'] += time.perf_counter()
@@ -203,7 +207,7 @@ def decrypt_block(block, key_schedule, timings):
         timings['inv_sub_bytes'] += time.perf_counter()
 
         timings['add_round_key'] -= time.perf_counter()
-        state = add_round_key(state, key_schedule[round*Nb:(round+1)*Nb])
+        state = add_round_key(state, key_schedule[round*4:(round+1)*4])
         timings['add_round_key'] += time.perf_counter()
 
         timings['inv_mix_columns'] -= time.perf_counter()
@@ -220,7 +224,7 @@ def decrypt_block(block, key_schedule, timings):
     timings['inv_sub_bytes'] += time.perf_counter()
 
     timings['add_round_key'] -= time.perf_counter()
-    state = add_round_key(state, key_schedule[0:Nb])
+    state = add_round_key(state, key_schedule[0:4])
     timings['add_round_key'] += time.perf_counter()
 
     return state_to_bytes(state)
@@ -241,6 +245,7 @@ def encrypt_file(input_file, output_file, key):
         data = f.read()
 
     data = pad(data)
+    print(f"Data length after padding: {len(data)} bytes")
     key_schedule_timings = {'key_expansion': 0}
     timings = {
         'initial_add_round_key': 0,
@@ -258,6 +263,7 @@ def encrypt_file(input_file, output_file, key):
     total_time = -time.perf_counter()
     for i in range(0, len(data), 16):
         block = data[i:i+16]
+        print(f"Processing block of size: {len(block)} bytes")
         encrypted_block = encrypt_block(block, key_schedule, timings)
         encrypted_data += encrypted_block
     total_time += time.perf_counter()
@@ -305,6 +311,7 @@ def main():
 
     # List of file sizes to test (in bytes)
     file_sizes = [1024, 10240, 102400, 1048576]  # 1KB, 10KB, 100KB, 1MB
+
 
     for size in file_sizes:
         # Create a test file of the specified size

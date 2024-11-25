@@ -1,0 +1,21 @@
+#---sem-print---
+Encryption total time: 117.642906 seconds
+
+Encryption phase timings:
+  initial_add_round_key: 2.209311 seconds
+  sub_bytes: 24.655495 seconds
+  shift_rows: 9.334431 seconds
+  mix_columns: 48.199722 seconds
+  add_round_key: 22.218813 seconds
+  Key Expansion: 0.000035 seconds
+
+#---sem-print---
+Decryption total time: 105.136048 seconds
+
+Decryption phase timings:
+  initial_add_round_key: 2.294609 seconds
+  inv_sub_bytes: 25.047860 seconds
+  inv_shift_rows: 9.519693 seconds
+  inv_mix_columns: 34.750725 seconds
+  add_round_key: 21.830773 seconds
+  Key Expansion: 0.000035 seconds

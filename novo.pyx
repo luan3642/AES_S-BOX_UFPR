@@ -406,10 +406,12 @@ def decrypt_file(input_file, output_file, key):
 @cython.nonecheck(False)
 def main():
     key = b'This is a key123'  # 16-byte key for AES-128
+    if(len(sys.argv) < 3):
+        print(f'Entrada Inválida:\nEncriptar arquivo: python3 AES.py -e <input_file> <encrypted_file>\nDecriptar arquivo: python3 AES.py -d <input_file> <encrypted_file>')
+        exit(0)
     enc_output_file = sys.argv[3]
     dec_output_file = sys.argv[3]
     input_file_name = sys.argv[2]
-
     if(sys.argv[1] == "e"):
         print(f'\nEncrypting file')
         # Encrypt the file
@@ -430,6 +432,7 @@ def main():
             print(f'  {phase}: {time_taken:.6f} seconds')
         print(f'  Key Expansion: {dec_key_schedule_timings["key_expansion"]:.6f} seconds')
 
+   
     # Clean up test files (optional)
     # os.remove(test_filename)
     # os.remove(enc_output_file)

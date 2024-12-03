@@ -408,7 +408,7 @@ def main():
     key = b'This is a key123'  # 16-byte key for AES-128
     if(len(sys.argv) < 3):
         print(f'Entrada Inválida:\nEncriptar arquivo: python3 AES.py -e <input_file> <encrypted_file>\nDecriptar arquivo: python3 AES.py -d <input_file> <encrypted_file>')
-        exit(0)
+        exit(1)
     enc_output_file = sys.argv[3]
     dec_output_file = sys.argv[3]
     input_file_name = sys.argv[2]

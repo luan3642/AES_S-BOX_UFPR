@@ -1,5 +1,5 @@
 import time
-import os
+from progressbar import progressbar
 import cython
 import sys
 # AES parameters
@@ -351,11 +351,16 @@ def encrypt_file(input_file, output_file, key):
 
     total_time = -time.perf_counter()
     with open(output_file, 'ab', buffering=1024) as f:
-        for i in range(0, len(data), 16):
+        for i in progressbar(range(0, len(data), 16)):
             block = data[i:i+16]
-            print(f"Processing block of size: {len(block)} bytes")
-            print(f"remaining: {len(data) - i}")
+            # print(f"Processing block of size: {len(block)} bytes")
+            # print(f"remaining: {len(data) - i}")
             f.write(encrypt_block(block, key_schedule, timings))
+        # for i in range(0, len(data), 16):
+        #     block = data[i:i+16]
+        #     print(f"Processing block of size: {len(block)} bytes")
+        #     print(f"remaining: {len(data) - i}")
+        #     f.write(encrypt_block(block, key_schedule, timings))
         total_time += time.perf_counter()
 
 
